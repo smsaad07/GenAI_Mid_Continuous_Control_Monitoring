@@ -47,11 +47,18 @@ export async function chat(body: {
   if (res.status === 429 || res.status >= 500) {
     const ra = Number(res.headers.get("retry-after") || "0") || 2 ** attempt * 2;
     const text = await res.text();
-    if (attempt < 3 && ra <= 20) {
+    if (attempt < 2 && ra <= 10) { // keep well inside the 60 s Vercel function limit
       await new Promise((r) => setTimeout(r, ra * 1000));
       return chat(body, attempt + 1);
     }
-    if (res.status === 429) throw new RateLimitError(`Groq rate limit: ${text.slice(0, 300)}`, ra);
+    if (res.status === 429) {
+      // e.g. "...on tokens per day (TPD): Limit 200000, Used 199526, Requested 2311. Please try again in 7m12.5s."
+      const which = text.match(/on (tokens per minute|tokens per day|requests per minute|requests per day) \((\w+)\)/i);
+      const wait = text.match(/try again in ((\d+)h)?((\d+)m)?(([\d.]+)s)?/i);
+      const secs = wait ? Number(wait[2] || 0) * 3600 + Number(wait[4] || 0) * 60 + Math.ceil(Number(wait[6] || 0)) : ra;
+      const label = which ? `${which[1]} (${which[2]})` : "rate limit";
+      throw new RateLimitError(`Groq free-tier ${label} reached; retry in ${wait ? wait[0].replace(/try again in /i, "") : ra + "s"}`, secs || ra);
+    }
     throw new Error(`Groq ${res.status}: ${text.slice(0, 300)}`);
   }
   const data: any = await res.json();

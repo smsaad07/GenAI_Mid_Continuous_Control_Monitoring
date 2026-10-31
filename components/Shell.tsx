@@ -89,9 +89,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         if (r.done || r.remaining === 0) { setAgentNote("Queue empty - agent idle"); break; }
       }
     } catch (e: any) {
-      const wait = e.status === 429 ? Math.min(120, Number(e.retryAfter) || 30) : 20;
+      const wait = e.status === 429 ? Math.min(900, Math.max(15, Number(e.retryAfter) || 30)) : 20;
       setPausedUntil(Date.now() + wait * 1000);
-      setAgentNote(e.status === 429 ? `Model rate limit reached - pausing ${wait}s` : `Agent error: ${e.message} - retrying in ${wait}s`);
+      setAgentNote(e.status === 429 ? `${e.message || "Model rate limit reached"} - agent resumes automatically (queued items are kept)` : `Agent error: ${e.message} - retrying in ${wait}s`);
     } finally {
       busyRef.current = false;
       setAgentBusy(false);

@@ -55,12 +55,13 @@ I chose an open-weight model on purpose. My Phase 1 verdict was 'go, with in-cou
 
 **Screen:** **Evaluation** page, then the notebook results table (section 11).
 
-**Voice (fill in the numbers from notebook section 11):**
-"I seeded breaches and look-alike decoys into the synthetic data, so everything is scored against ground truth.
-The rules found 100% of seeded breaches across 20 batches, after my first duplicate-invoice rule missed 70% of them: it compared invoice numbers exactly, and fixing it is in the notebook.
-On the AI evaluation set the false-clear rate, a real breach called a false positive, was X%, against a 2% target. Severity agreement was Y%, citation faithfulness Z%, and precision W%. It cost about 0.1 cents per exception.
-One thing that doesn't work: [pick the clearest failure from the honesty section, e.g. 'the agent sometimes picks the wrong severity when the rubric needs arithmetic, like the 20% minimum-wage shortfall threshold' or 'the synthetic decoys are cleaner than real evidence, so these scores are an upper bound']. And the evaluation set is small, about 25 exceptions, because of the free-tier token limit.
-That is why a supervisor and an approver review every proposal. Thank you."
+**Voice:**
+"I seeded breaches and look-alike decoys into the synthetic data, so every result is scored against ground truth.
+Across 20 batches, about ten thousand records, the rules found all 160 seeded breaches. My first duplicate-invoice rule found only 30%, because it compared invoice numbers exactly. The fix is in the notebook.
+On the AI evaluation set of 23 exceptions, the agent made no false clears, its severity matched the rubric every time, and 96% of its explanations had every figure verified. It cost about six-hundredths of a cent per exception: $0.013 for the whole run.
+But that's 23 cases on clean synthetic evidence, so it's an upper bound. Zero out of 14 still allows a real false-clear rate of up to about 20%.
+One thing that doesn't work: the audit copilot contradicted itself. It reported three breaches for a control, then cited exceptions the AI hadn't assessed yet. Every number was real, so my faithfulness check passed it. And the agent's confidence was 95 to 98% on every case, so it tells a reviewer nothing.
+That's why a supervisor and an approver review every proposal. Thank you."
 
 ---
 

@@ -179,8 +179,8 @@ def match(e, gt_by):
     return None
 gt_by = {}
 for g in gt.to_dict("records"): gt_by.setdefault((g["batch_no"], g["control_id"]), []).append(g)
-exc["gt"] = exc.apply(lambda e: match(e, gt_by), axis=1)
-exc["truth"] = exc.gt.apply(lambda g: g["kind"] if g else "unseeded")
+exc["gtrow"] = exc.apply(lambda e: match(e, gt_by), axis=1)
+exc["truth"] = exc.gtrow.apply(lambda g: g["kind"] if g else "unseeded")
 
 def detected(g):
     return any(set(g["record_ids"]) & set(r) for r in exc[(exc.batch_no==g["batch_no"]) & (exc.control_id==g["control_id"])].record_ids)
@@ -242,9 +242,9 @@ print(f'{len(agent_log["runs"])} exceptions investigated in {agent_log["wall_sec
 """)
 code(r"""
 exc = pd.DataFrame(sup.get(f"{BASE}/api/export?what=exceptions").json()["rows"])
-exc["gt"] = exc.apply(lambda e: match(e, gt_by), axis=1)
-exc["truth"] = exc.gt.apply(lambda g: g["kind"] if g else "unseeded")
-exc["expected_sev"] = exc.gt.apply(lambda g: g["expected_severity"] if g else None)
+exc["gtrow"] = exc.apply(lambda e: match(e, gt_by), axis=1)
+exc["truth"] = exc.gtrow.apply(lambda g: g["kind"] if g else "unseeded")
+exc["expected_sev"] = exc.gtrow.apply(lambda g: g["expected_severity"] if g else None)
 ev = exc[exc.batch_no.isin(EVAL_AI_BATCHES) & exc.ai.notna()].copy()
 for k in ["disposition", "severity", "confidence", "mode"]: ev[k] = ev.ai.apply(lambda a: a.get(k))
 ev["faithful"] = ev.ai.apply(lambda a: a["faithfulness"]["ok"])
@@ -296,7 +296,7 @@ code(r"""
 # Every case the agent got wrong (disposition or severity), with its own explanation
 wrong = ev[~ev.correct | (ev.is_breach & (ev.disposition=="breach") & (ev.severity != ev.expected_sev))]
 wrong[["ref", "control_id", "truth", "disposition", "severity", "expected_sev", "confidence", "faithful"]].assign(
-    explanation=wrong.ai.apply(lambda a: a["explanation"][:220]), scenario=wrong.gt.apply(lambda g: g["scenario"] if g else ""))
+    explanation=wrong.ai.apply(lambda a: a["explanation"][:220]), scenario=wrong.gtrow.apply(lambda g: g["scenario"] if g else ""))
 """)
 code(r"""
 # Unverified citations flagged by the faithfulness checker
@@ -421,6 +421,13 @@ print("\nreport tokens", cr["report"]["usage"]["total_tokens"], "| faithfulness"
 """)
 
 md(r"""
+### Failure 3 (found in this run): the copilot contradicted itself
+Read the answer above closely. The copilot says GL-01 has 3 AI-proposed breaches worth PKR 2,830,000. It then says none of the GL-01 items is tagged as a breach, and cites three exceptions that are still **queued and unassessed** (from later batches). Two tools with different filters (`exposure_by` counts AI-proposed breaches; `query_exceptions` returned all GL-01 items sorted by amount) were blended into one answer. The faithfulness check passed, because every figure exists in the data; it checks figures, not logic. **Status:** not fixed. I record it as a limitation and do not use copilot answers as audit evidence. The fix I would make next: one tool that returns breach-only rows *with* refs, and a prompt rule to state the filter used for every number.
+
+Also visible in section 5: the verifier flagged "25,000" in a correct explanation (40,000 × 30/48, a pro-rated minimum wage). That is a **verifier false alarm**: it accepts sums and differences of evidence figures, but not products.
+""")
+
+md(r"""
 ## 10. The human loop, end to end (through the same API the UI uses)
 
 The supervisor confirms one AI-proposed breach. The approver tries to act on an item they did not review, then approves it, which raises a corrective action. The supervisor submits remediation evidence, and only the approver can close it. The audit trail records each step.
@@ -442,11 +449,13 @@ if not WF_CACHE.exists():
 wf = json.load(open(WF_CACHE))
 print("Exception", wf["ref"])
 for s, r in wf["steps"]: print(f"  {s:55s} -> {r}")
-pd.DataFrame(wf["trail"])[["at", "actor", "role", "action", "entity", "detail"]].sort_values("at")
+pd.DataFrame(wf["trail"])[["at", "actor", "role", "action", "entity", "detail"]].sort_values("at").tail(6)   # this run only
 """)
 
 md(r"""
 ## 11. Results against the Phase 1 evaluation plan
+
+Read this table together with the honesty section. The AI rows come from 23 exceptions, so 0% false clears is consistent with a true rate of up to about 21%; it does **not** demonstrate the ≤ 2% target. The baseline in section 6 matched the agent at half the tokens. Confidence was 0.95-0.98 on every case, so it carries no information.
 """)
 code(r"""
 ruler = gt[gt.kind=="breach"].detected.mean()
@@ -464,13 +473,7 @@ res = pd.DataFrame([
 res
 """)
 
-md(r"""
-## 12. Honesty section
-
-*(Also in `docs/HONESTY.md`.)*
-
-HONESTY_PLACEHOLDER
-""")
+md("## 12. Honesty section\n\n*(Also in `docs/HONESTY.md`.)*\n\n" + open("../docs/HONESTY.md").read().split("\n", 1)[1])
 
 nb["cells"] = C
 nb["metadata"]["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}

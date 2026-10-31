@@ -2,6 +2,9 @@
 // The key is read server-side only; it never reaches the browser.
 
 export const DEFAULT_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+// When the primary model's free-tier DAILY token quota is exhausted, fall back to this model
+// (separate quota). Every assessment records the model that produced it. Set to "" to disable.
+export const FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL ?? "openai/gpt-oss-20b";
 export const REASONING_EFFORT = (process.env.GROQ_REASONING_EFFORT || "medium") as "low" | "medium" | "high";
 
 // USD per 1M tokens (third-party trackers of Groq on-demand pricing, Oct 2026; verify at console.groq.com).
@@ -57,7 +60,10 @@ export async function chat(body: {
       const wait = text.match(/try again in ((\d+)h)?((\d+)m)?(([\d.]+)s)?/i);
       const secs = wait ? Number(wait[2] || 0) * 3600 + Number(wait[4] || 0) * 60 + Math.ceil(Number(wait[6] || 0)) : ra;
       const label = which ? `${which[1]} (${which[2]})` : "rate limit";
-      throw new RateLimitError(`Groq free-tier ${label} reached; retry in ${wait ? wait[0].replace(/try again in /i, "") : ra + "s"}`, secs || ra);
+      if (which && /day/i.test(which[1]) && FALLBACK_MODEL && model !== FALLBACK_MODEL) {
+        return chat({ ...body, model: FALLBACK_MODEL }, 0);
+      }
+      throw new RateLimitError(`Groq free-tier ${label} reached for ${model}; retry in ${wait ? wait[0].replace(/try again in /i, "") : ra + "s"}`, secs || ra);
     }
     throw new Error(`Groq ${res.status}: ${text.slice(0, 300)}`);
   }

@@ -188,6 +188,7 @@ export async function investigate(exc: any, opts: { mode?: "agent" | "single"; m
 
   const messages: any[] = [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt }];
   let submitted: any = null;
+  let usedModel = model;
   let lookups = 0;
   const SUBMIT_ONLY = TOOLS.filter((t) => t.function.name === "submit_assessment");
   for (let step = 1; step <= MAX_STEPS && !submitted; step++) {
@@ -206,6 +207,7 @@ export async function investigate(exc: any, opts: { mode?: "agent" | "single"; m
     }
     calls++;
     usage = addUsage(usage, r.usage);
+    usedModel = r.model;
     const msg = r.message;
     const toolCalls = msg.tool_calls || [];
     steps.push({ type: "llm", step, latency_ms: r.latency_ms, usage: r.usage, content: msg.content || null, reasoning: msg.reasoning ? String(msg.reasoning).slice(0, 1200) : null, tool_calls: toolCalls.map((t: any) => ({ name: t.function?.name, arguments: t.function?.arguments })) });
@@ -236,17 +238,21 @@ export async function investigate(exc: any, opts: { mode?: "agent" | "single"; m
   if (!submitted) { a.explanation = "Agent did not submit an assessment within the step limit. " + exc.rule_detail; a.confidence = 0; }
   const f = checkFaithfulness(`${a.explanation} ${a.root_cause} ${a.recommended_action}`, corpusParts.join("\n"));
   return {
-    assessment: { ...a, mode: "agent", faithfulness: f, model, prompt_version: PROMPT_VERSION, steps_used: steps.filter((s) => s.type === "llm").length, masked_fields: counter.n },
-    usage, cost_usd: costUsd(model, usage), latency_ms: Date.now() - t0, steps, llm_calls: calls,
+    assessment: { ...a, mode: "agent", faithfulness: f, model: usedModel, prompt_version: PROMPT_VERSION, steps_used: steps.filter((s) => s.type === "llm").length, masked_fields: counter.n },
+    usage, cost_usd: costUsd(usedModel, usage), latency_ms: Date.now() - t0, steps, llm_calls: calls,
   };
 }
 
 /** Claim the next NEW exception, investigate it and persist the proposal. Returns null when the queue is empty. */
 export async function processNext(actor = "agent-worker", maxBatch?: number): Promise<any | null> {
   await q("UPDATE exceptions SET status='NEW', claimed_at=NULL WHERE status='AI_RUNNING' AND claimed_at < now() - interval '3 minutes'");
+  // Free-tier Groq allows ~8,000 tokens/minute. Several open tabs/devices each run a worker, and
+  // concurrent agent runs trip the per-minute limit. Serialise: only one agent run at a time, app-wide.
+  const busy = await q1("SELECT 1 AS b FROM exceptions WHERE status='AI_RUNNING' AND claimed_at > now() - interval '2 minutes' LIMIT 1");
+  if (busy) return { busy: true };
   const exc = await q1(
     `UPDATE exceptions SET status='AI_RUNNING', claimed_at=now(), ai_attempts=ai_attempts+1
-     WHERE id = (SELECT id FROM exceptions WHERE status='NEW' AND batch_no <= $1 ORDER BY batch_no, id LIMIT 1 FOR UPDATE SKIP LOCKED)
+     WHERE id = (SELECT id FROM exceptions WHERE status='NEW' AND batch_no <= $1 AND NOT EXISTS (SELECT 1 FROM exceptions x WHERE x.status='AI_RUNNING' AND x.claimed_at > now() - interval '2 minutes') ORDER BY batch_no, id LIMIT 1 FOR UPDATE SKIP LOCKED)
      RETURNING *`,
     [maxBatch ?? 2147483647],
   );

@@ -81,6 +81,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       for (let i = 0; i < 200; i++) {
         setAgentNote("Investigating next exception...");
         const r = await api("/api/agent/next", { method: "POST" });
+        if (r.busy) {
+          setAgentNote(`Agent is working in another open session - ${r.remaining} queued`);
+          await new Promise((res) => setTimeout(res, 8000));
+          continue;
+        }
         if (r.result) {
           setAgentLog((l) => [{ ...r.result, at: new Date().toISOString() }, ...l].slice(0, 30));
           setAgentNote(`${r.result.ref}: ${r.result.assessment.disposition}${r.result.assessment.severity ? " / " + r.result.assessment.severity : ""} - ${r.remaining} left`);

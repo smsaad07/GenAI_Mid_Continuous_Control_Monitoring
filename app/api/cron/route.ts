@@ -10,6 +10,6 @@ export async function GET(req: Request) {
   const ing = await ingestNextBatch("scheduled run (cron)");
   const t0 = Date.now();
   let processed = 0;
-  try { while (Date.now() - t0 < 40_000) { const r = await processNext("AI agent (scheduled)"); if (!r) break; processed++; } } catch (e: any) { return NextResponse.json({ ingest: ing, processed, stopped: String(e.message) }); }
+  try { while (Date.now() - t0 < 40_000) { const r = await processNext("AI agent (scheduled)"); if (!r || r.busy) break; processed++; } } catch (e: any) { return NextResponse.json({ ingest: ing, processed, stopped: String(e.message) }); }
   return NextResponse.json({ ingest: ing, processed });
 }

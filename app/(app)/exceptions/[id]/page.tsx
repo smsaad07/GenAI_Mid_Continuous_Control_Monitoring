@@ -54,7 +54,7 @@ export default function ExceptionDetail({ params }: { params: Promise<{ id: stri
       <div className="grid g2" style={{ alignItems: "start" }}>
         <div className="stack">
           <div className="card">
-            <div className="row between"><h2>AI investigation</h2>{a ? <span className="small muted">{a.mode === "agent" ? `agent · ${a.steps_used} model calls` : a.mode} · {a.model}</span> : null}</div>
+            <div className="row between"><h2>AI investigation</h2>{a ? <span className="small muted">{a.mode === "agent" ? `agent · ${a.steps_used} model calls` : a.mode} · {a.model}{a.model === "openai/gpt-oss-20b" ? " (fallback model - daily quota of gpt-oss-120b used; not covered by the evaluation)" : ""}</span> : null}</div>
             {!a ? <p className="muted">{e.status === "AI_RUNNING" ? "The agent is investigating this exception now..." : "Queued for the investigation agent."}</p> : (
               <div className="stack" style={{ gap: 10 }}>
                 <div className="row"><Disp d={a.disposition} /><Sev s={a.severity} /><span className="pill">Confidence {Math.round(a.confidence * 100)}%</span>

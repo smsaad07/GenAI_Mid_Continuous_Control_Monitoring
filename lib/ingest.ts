@@ -19,7 +19,7 @@ export const DEMO_USERS = [
   { email: "committee@ccm.demo", password: "Committee@2026", name: "Audit Committee member (demo)", title: "Board Audit Committee - read only", role: "viewer" },
 ];
 
-export async function ensureSeeded(initialBatches = 3) {
+export async function ensureSeeded(initialBatches = Number(process.env.INITIAL_BATCHES || 1)) {
   const u = await q1<{ n: string }>("SELECT count(*)::text AS n FROM app_users");
   if (u && Number(u.n) > 0) return false;
   await tx(async (c) => {

@@ -24,7 +24,7 @@ export default function Login() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "48px 16px" }}>
       <h1>ControlSight CCM</h1>
       <p className="sub" style={{ maxWidth: 680 }}>Continuous control monitoring for Internal Audit. Every transaction is tested against the risk and control matrix as data arrives; an AI agent investigates each exception and proposes a rating; a supervisor reviews it and the Head of Internal Audit approves it.</p>
-      <div className="banner info" style={{ marginTop: 14 }}>Demo build on <b>synthetic data</b> (anonymised biscuit &amp; cake manufacturer with three factories). Pick a role to sign in - no installation or key needed. The first sign-in loads the initial data extracts and can take ~10 seconds.</div>
+      <div className="banner info" style={{ marginTop: 14 }}>Demo build on <b>synthetic data</b> (anonymised biscuit &amp; cake manufacturer with three factories). Pick a role to sign in - no installation or key needed. The first sign-in loads the initial data extract and can take ~10 seconds.</div>
       <div className="grid g3" style={{ marginTop: 18 }}>
         {DEMO.map((d) => (
           <div key={d.email} className="card stack" style={{ gap: 8 }}>

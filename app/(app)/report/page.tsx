@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useMonitor } from "@/components/Shell";
 import { api, dt, usd } from "@/components/client";
+import Markdown from "@/components/Markdown";
 
 export default function Report() {
   const m = useMonitor();
@@ -21,7 +22,7 @@ export default function Report() {
         <div className="card">
           <div className="row small muted" style={{ marginBottom: 10 }}>Generated {dt(r.generated_at)} by {r.generated_by} · {r.usage?.total_tokens} tokens · {usd(r.cost_usd)} ·
             {r.faithfulness ? (r.faithfulness.ok ? <span className="ok-text">✓ all {r.faithfulness.checked} figures verified against the data</span> : <span className="bad-text">⚠ unverified figures: {r.faithfulness.unverified.join(", ")}</span>) : null}</div>
-          <div style={{ whiteSpace: "pre-wrap", maxWidth: 820, lineHeight: 1.6 }}>{r.text}</div>
+          <div style={{ maxWidth: 900, lineHeight: 1.6 }}><Markdown text={r.text} /></div>
           <p className="small muted" style={{ marginTop: 14 }}>Draft for the Head of Internal Audit. Ratings are proposed until signed off. Synthetic data.</p>
         </div>
       )}

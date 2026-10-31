@@ -11,6 +11,8 @@ import { dashboard } from "../stats";
 const SYSTEM = `You are the audit copilot of a continuous control monitoring tool for Internal Audit at a Pakistani food manufacturer (synthetic data).
 Answer the user's question by calling the read-only tools to get facts; never guess numbers. Plan the minimum calls needed.
 Statuses: NEW/AI_RUNNING (queued for AI), PENDING_REVIEW (AI proposed, supervisor to review), PENDING_APPROVAL (supervisor decided, approver to sign), FINDING (approved breach), CLOSED_NO_ISSUE.
+Definitions: an "open breach" is an exception whose AI disposition is breach and whose status is PENDING_REVIEW or PENDING_APPROVAL, or whose status is FINDING; use query_exceptions with open_breaches_only=true for these. Exceptions in NEW/AI_RUNNING have not been assessed and must never be described as breaches. When you give a count or amount, say which filter produced it, and only cite refs returned by the same filter.
+All amounts are Pakistani rupees: write "PKR", never "$".
 Answer concisely for an auditor: short paragraphs or a compact list, cite exception refs (EXC-...) and amounts in PKR exactly as returned by tools. If the data cannot answer the question, say so.
 Controls: ${CONTROLS.map((c) => `${c.id} ${c.name}`).join("; ")}.`;
 
@@ -20,8 +22,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "query_exceptions",
-      description: "List exceptions filtered by any of: control_id, process, status, ai_disposition (breach|false_positive|needs_more_info), severity, batch_no, min_amount. Sorted by amount desc. Max 25.",
-      parameters: { type: "object", properties: { control_id: { type: "string" }, process: { type: "string" }, status: { type: "string" }, ai_disposition: { type: "string" }, severity: { type: "string" }, batch_no: { type: "integer" }, min_amount: { type: "number" }, limit: { type: "integer" } } },
+      description: "List exceptions filtered by any of: open_breaches_only (true = AI-proposed breaches in review plus approved findings), control_id, process, status (one status or comma-separated list), ai_disposition (breach|false_positive|needs_more_info), severity, batch_no, min_amount. Sorted by amount desc. Max 25.",
+      parameters: { type: "object", properties: { open_breaches_only: { type: "boolean" }, control_id: { type: "string" }, process: { type: "string" }, status: { type: "string", description: "e.g. PENDING_REVIEW or PENDING_REVIEW,FINDING" }, ai_disposition: { type: "string" }, severity: { type: "string" }, batch_no: { type: "integer" }, min_amount: { type: "number" }, limit: { type: "integer" } } },
     },
   },
   { type: "function", function: { name: "get_exception", description: "Full detail of one exception by ref (EXC-....-...), including AI assessment and review trail.", parameters: { type: "object", properties: { ref: { type: "string" } }, required: ["ref"] } } },
@@ -46,7 +48,8 @@ async function tool(name: string, a: any) {
     const add = (sql: string, v: any) => { p.push(v); w.push(sql.replace("?", `$${p.length}`)); };
     if (a.control_id) add("control_id = ?", a.control_id);
     if (a.process) add("control_id = ANY(?)", CONTROLS.filter((c) => c.process.toLowerCase().includes(String(a.process).toLowerCase())).map((c) => c.id));
-    if (a.status) add("status = ?", a.status);
+    if (a.open_breaches_only) w.push("(status='FINDING' OR (status IN ('PENDING_REVIEW','PENDING_APPROVAL') AND ai->>'disposition'='breach'))");
+    if (a.status) add("status = ANY(?)", (Array.isArray(a.status) ? a.status : String(a.status).split(",")).map((x: string) => x.trim()));
     if (a.ai_disposition) add("ai->>'disposition' = ?", a.ai_disposition);
     if (a.severity) add("COALESCE(sup_severity, ai->>'severity') = ?", a.severity);
     if (a.batch_no) add("batch_no = ?", a.batch_no);
@@ -89,7 +92,16 @@ export async function askCopilot(history: { role: "user" | "assistant"; content:
   const t0 = Date.now();
   let answer = "";
   for (let i = 0; i < 6; i++) {
-    const r = await chat({ messages, tools: TOOLS, tool_choice: i === 5 ? "none" : "auto", reasoning_effort: "low" });
+    let r;
+    try {
+      r = await chat({ messages, tools: TOOLS, tool_choice: i === 5 ? "none" : "auto", reasoning_effort: "low" });
+    } catch (e: any) {
+      if (e?.retryAfter || !/tool_use_failed|validation/i.test(String(e?.message))) throw e;
+      // malformed tool call (e.g. wrong argument type): tell the model and let it try again
+      steps.push({ tool: "(rejected call)", arguments: {}, result_preview: String(e.message).slice(0, 200) });
+      messages.push({ role: "user", content: "Your last tool call had invalid arguments (each argument must match the schema; status is a string, comma-separated for several). Try again." });
+      continue;
+    }
     calls++;
     usage = addUsage(usage, r.usage);
     const tcs = r.message.tool_calls || [];
@@ -122,7 +134,7 @@ export async function generateReport() {
   const r = await chat({
     reasoning_effort: "low",
     messages: [
-      { role: "system", content: "You write the continuous-monitoring summary for the Board Audit Committee of a food manufacturer (synthetic demo data). Use ONLY the figures in the JSON provided; do not compute new totals unless trivially additive. Structure: 1) Overall assurance position (2-3 sentences), 2) Controls rated Ineffective or Needs improvement with why, 3) Exposure and themes, 4) Pipeline status (what is awaiting AI, supervisor, approver), 5) Matters for the Committee's attention. Plain text with short headings, under 350 words. State that ratings are proposed until signed off by the Head of Internal Audit." },
+      { role: "system", content: "You write the continuous-monitoring summary for the Board Audit Committee of a food manufacturer (synthetic demo data). Use ONLY the figures in the JSON provided; do not compute new totals unless trivially additive. Structure: 1) Overall assurance position (2-3 sentences), 2) Controls rated Ineffective or Needs improvement with why, 3) Exposure and themes, 4) Pipeline status (what is awaiting AI, supervisor, approver), 5) Matters for the Committee's attention. Plain text with short headings, under 350 words. All amounts are Pakistani rupees: write PKR, never the dollar sign. State that ratings are proposed until signed off by the Head of Internal Audit." },
       { role: "user", content: JSON.stringify(facts) },
     ],
   });

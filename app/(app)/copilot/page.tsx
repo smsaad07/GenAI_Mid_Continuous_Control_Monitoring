@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { api, usd } from "@/components/client";
+import Markdown from "@/components/Markdown";
 
 const SUGGEST = [
   "Which controls are currently rated Ineffective and why?",
@@ -30,8 +31,8 @@ export default function Copilot() {
       <div className="card chat">
         {msgs.length === 0 ? <p className="muted">Ask a question to start.</p> : null}
         {msgs.map((m, i) => (
-          <div key={i} className={`msg ${m.role}`}>
-            {m.content}
+          <div key={i} className={`msg ${m.role}`} style={{ whiteSpace: m.role === "user" ? "pre-wrap" : "normal" }}>
+            {m.role === "assistant" ? <Markdown text={m.content} /> : m.content}
             {m.steps?.length ? <details className="small" style={{ marginTop: 8 }}><summary className="muted">{m.steps.length} tool calls · {m.usage?.total_tokens} tokens · {usd(m.cost)}{m.faith ? (m.faith.ok ? ` · ✓ ${m.faith.checked} figures verified` : ` · ⚠ unverified: ${m.faith.unverified.join(", ")}`) : ""}</summary>
               {m.steps.map((s: any, j: number) => <div key={j} className="mono" style={{ marginTop: 4 }}>→ {s.tool}({JSON.stringify(s.arguments)})</div>)}</details> : null}
           </div>

@@ -24,7 +24,9 @@ function numbersIn(text: string): number[] {
   return out;
 }
 
-export function checkFaithfulness(claimText: string, corpus: string): Faithfulness {
+export function checkFaithfulness(claimTextRaw: string, corpus: string): Faithfulness {
+  // models sometimes write IDs with unicode hyphens (E\u201110154); normalise before matching
+  const claimText = claimTextRaw.replace(/[\u2010-\u2015\u2212]/g, "-");
   const ids = Array.from(new Set(claimText.match(ID_RE) || []));
   const dates = Array.from(new Set(claimText.match(DATE_RE) || []));
   const corpusIds = new Set(corpus.match(ID_RE) || []);

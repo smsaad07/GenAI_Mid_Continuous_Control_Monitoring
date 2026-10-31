@@ -1,0 +1,17 @@
+batches=20 records=10042
+control  ver                         breaches found recall | decoys flagged | candidates tp unexplained
+P2P-01   v2 (normalised ref OR same amount within 45 days)       10    10   100% |      7       7 |         17  10           0
+P2P-02   v1                                 9     9   100% |      6       6 |         15   9           0
+P2P-03   v1                                11    11   100% |      5       5 |         16  11           0
+P2P-04   v1                                13    13   100% |      5       5 |         18  13           0
+P2P-05   v1                                 6     6   100% |     11      11 |         17   6           0
+O2C-01   v1                                11    11   100% |     10      10 |         21  11           0
+O2C-02   v1                                10    10   100% |      5       5 |         15  10           0
+INV-01   v1                                 8     8   100% |     10      10 |         18   8           0
+LOG-01   v1                                 8     8   100% |      8       8 |         16   8           0
+PAY-01   v1 (no pro-rata adjustment)       12    12   100% |      8       8 |         20  12           0
+PAY-02   v1                                 9     9   100% |      8       8 |         17   9           0
+PAY-03   v1                                14    14   100% |     11      11 |         25  14           0
+ITA-01   v1                                12    12   100% |      5       5 |         17  12           0
+ITA-02   v1                                17    17   100% |      8       8 |         25  17           0
+GL-01    v1                                10    10   100% |      4       4 |         14  10           0

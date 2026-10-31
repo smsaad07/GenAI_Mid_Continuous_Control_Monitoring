@@ -41,7 +41,7 @@ type TestFn = (R: Records, m: Master) => Omit<TestResult, "control_id" | "rule_v
 
 const TESTS: Record<string, { version: string; fn: TestFn }> = {
   "P2P-01": {
-    version: "v1 (exact reference match)",
+    version: "v2 (normalised ref OR same amount within 45 days)",
     fn: (R) => {
       const inv = R.invoice;
       const out: Candidate[] = [];
@@ -49,7 +49,11 @@ const TESTS: Record<string, { version: string; fn: TestFn }> = {
       for (let i = 0; i < inv.length; i++) for (let j = i + 1; j < inv.length; j++) {
         const a = inv[i], b = inv[j];
         if (a.vendor_id !== b.vendor_id) continue;
-        if (a.vendor_invoice_ref !== b.vendor_invoice_ref) continue;
+        // v1 compared raw references and missed "INV-123"/"inv/123" and transposed digits (recall 30%).
+        // v2: normalised reference match, OR same gross amount within the duplicate window.
+        const sameRef = normRef(a.vendor_invoice_ref) === normRef(b.vendor_invoice_ref);
+        const sameAmt = a.gross_amount === b.gross_amount && Math.abs(daysBetween(a.invoice_date, b.invoice_date)) <= DUPLICATE_WINDOW_DAYS;
+        if (!sameRef && !sameAmt) continue;
         const key = [a.id, b.id].sort().join("|");
         if (seen.has(key)) continue;
         seen.add(key);
@@ -57,7 +61,7 @@ const TESTS: Record<string, { version: string; fn: TestFn }> = {
         out.push({
           control_id: "P2P-01", record_ids: [first.id, second.id], primary_record_id: second.id,
           title: `Possible duplicate invoice: ${a.vendor_name}, PKR ${fmt(second.gross_amount)}`,
-          rule_detail: `Invoices ${first.id} (ref ${first.vendor_invoice_ref}, ${first.invoice_date}) and ${second.id} (ref ${second.vendor_invoice_ref}, ${second.invoice_date}) share the same invoice reference.`,
+          rule_detail: `Invoices ${first.id} (ref ${first.vendor_invoice_ref}, ${first.invoice_date}) and ${second.id} (ref ${second.vendor_invoice_ref}, ${second.invoice_date}) ${sameRef ? "share the same normalised invoice reference" : "have the same vendor and gross amount within " + DUPLICATE_WINDOW_DAYS + " days"}.`,
           amount_at_risk: second.gross_amount, txn_date: second.invoice_date, evidence: { invoice: [first, second] },
           related: [first.payment_id, second.payment_id].filter(Boolean).map((id: string) => ({ type: "payment", id, why: "payment of the invoice" })),
         });

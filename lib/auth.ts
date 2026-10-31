@@ -10,7 +10,7 @@ const secret = () => new TextEncoder().encode(process.env.SESSION_SECRET || "ccm
 
 export async function createSessionCookie(s: Session) {
   const token = await new SignJWT({ ...s }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("12h").sign(secret());
-  (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 12 });
+  (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.VERCEL === "1", path: "/", maxAge: 60 * 60 * 12 });
 }
 export async function clearSession() {
   (await cookies()).delete(COOKIE);

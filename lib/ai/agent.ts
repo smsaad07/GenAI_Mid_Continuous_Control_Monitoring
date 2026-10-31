@@ -242,12 +242,13 @@ export async function investigate(exc: any, opts: { mode?: "agent" | "single"; m
 }
 
 /** Claim the next NEW exception, investigate it and persist the proposal. Returns null when the queue is empty. */
-export async function processNext(actor = "agent-worker"): Promise<any | null> {
+export async function processNext(actor = "agent-worker", maxBatch?: number): Promise<any | null> {
   await q("UPDATE exceptions SET status='NEW', claimed_at=NULL WHERE status='AI_RUNNING' AND claimed_at < now() - interval '3 minutes'");
   const exc = await q1(
     `UPDATE exceptions SET status='AI_RUNNING', claimed_at=now(), ai_attempts=ai_attempts+1
-     WHERE id = (SELECT id FROM exceptions WHERE status='NEW' ORDER BY batch_no, id LIMIT 1 FOR UPDATE SKIP LOCKED)
+     WHERE id = (SELECT id FROM exceptions WHERE status='NEW' AND batch_no <= $1 ORDER BY batch_no, id LIMIT 1 FOR UPDATE SKIP LOCKED)
      RETURNING *`,
+    [maxBatch ?? 2147483647],
   );
   if (!exc) return null;
   try {
